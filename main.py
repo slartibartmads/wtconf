@@ -6,30 +6,6 @@ import argparse              # for handling command-line arguments
 from pathlib import Path     # for resolving paths
 import shutil
 
-def init():
-    CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / ""
-    SETTINGS_FILE = CONFIG_DIR/"wtconf" / "settings.yaml"
-    CONFIGLIST_FILE = CONFIG_DIR/"wtconf" /"configlist.yaml"
-
-    SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
-
-    if not CONFIGLIST_FILE.exists():
-        CONFIGLIST_FILE.touch()
-    if not SETTINGS_FILE.exists():
-        SETTINGS_FILE.write_text("editor: nano")
-
-    # Load the list of config files from YAML file into a Python dictionary
-    with open(CONFIGLIST_FILE) as f:
-        loaded = yaml.safe_load(f) or {}
-
-    # Load config.yaml
-    with open(SETTINGS_FILE) as f:
-        config = yaml.safe_load(f) or {}
-
-    editor = config.get("editor", "nano") # fallback to nano if missing        
-
-
-init()
 
 # Setup argparse: this defines what arguments the program accepts
 parser = argparse.ArgumentParser(description="wtconf is a tiny config file launcher")
@@ -37,29 +13,7 @@ parser.add_argument("--add", help="Add new config")  # e.g. configulator --add /
 args = parser.parse_args()
 
 
-
-
-
-
-# Handle adding new configs to CONFIGLIST_FILE
-if args.add:
-#    print(args.add)  # TEMP: show what was passed in (for debugging/learning)
-    path = Path(args.add).expanduser().resolve()
-    label = os.path.splitext(os.path.basename(args.add))[0]
-
-    # add to dict
-    loaded[label] = str(path)
-
-    # write to YAML
-    with open(CONFIGLIST_FILE, "w") as f:
-        yaml.safe_dump(loaded, f, sort_keys=False)
-
-        print(f"Added {label}: {path}")
-
-
-
-
-
+# globals
 
 banner = r"""
           _                   __ 
@@ -68,9 +22,11 @@ __      _| |_ ___ ___  _ __  / _|
  \ V  V /| || (_| (_) | | | |  _|
   \_/\_/  \__\___\___/|_| |_|_|  
 a tiny config launcher
-  
-  
+
 """
+
+
+
 
 def print_centered(text):
     cols = 60
@@ -100,7 +56,7 @@ def print_config():
         def get_selection(items):
             """Ask user to select a config ID or quit."""
             while True:
-                selection = input("\nSelect ID, (s)ettings, (c)onfigist or (q)uit: ").strip()
+                selection = input("\nEnter ID, (s)ettings, (c)onfigist or (q)uit: ").strip()
                 if not selection.isdigit():
                     # Handle non-numbers
                     if selection.lower() == "q":
@@ -130,6 +86,56 @@ def print_config():
             print(f"\n(editor exited with code {rc})\n")
             input("Press Enter to continue")
 
-# Default behavior: if no --add argument is passed, show the menu
-if args.add is None:
-    print_config()
+
+
+def init():
+    global loaded, editor, SETTINGS_FILE, CONFIGLIST_FILE  # <-- make assignments global
+
+    CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / ""
+    SETTINGS_FILE = CONFIG_DIR/"wtconf" / "settings.yaml"
+    CONFIGLIST_FILE = CONFIG_DIR/"wtconf" /"configlist.yaml"
+
+    SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+    if not CONFIGLIST_FILE.exists():
+        CONFIGLIST_FILE.touch()
+    if not SETTINGS_FILE.exists():
+        SETTINGS_FILE.write_text("editor: nano")
+
+    # Load the list of config files from YAML file into a Python dictionary
+    with open(CONFIGLIST_FILE) as f:
+        loaded = yaml.safe_load(f) or {}
+
+    # Load config.yaml
+    with open(SETTINGS_FILE) as f:
+        config = yaml.safe_load(f) or {}
+
+    editor = config.get("editor", "nano") # fallback to nano if missing        
+
+    print("Load complete")
+
+    # Default behavior: if no --add argument is passed, show the menu
+    if args.add is None:
+        print_config()
+
+init()
+
+
+# Handle adding new configs to CONFIGLIST_FILE
+if args.add:
+#    print(args.add)  # TEMP: show what was passed in (for debugging/learning)
+    path = Path(args.add).expanduser().resolve()
+    label = os.path.splitext(os.path.basename(args.add))[0]
+
+    # add to dict
+    loaded[label] = str(path)
+
+    # write to YAML
+    with open(CONFIGLIST_FILE, "w") as f:
+        yaml.safe_dump(loaded, f, sort_keys=False)
+
+        print(f"Added {label}: {path}")
+
+
+
+
