@@ -13,6 +13,10 @@ from rich.table import Table
 from rich import box
 from rich.text import Text
 
+
+
+# === Globals ===
+
 parser = argparse.ArgumentParser(description="wtconf is a tiny config file launcher")
 parser.add_argument("--add", help="Add new config")  # e.g. wtconf --add /etc/foo.conf
 args = parser.parse_args()
@@ -21,86 +25,7 @@ TABLE_WIDTH = 64
 
 
 
-def print_config(): # draw the menu
-    console = Console()
-
-    while True:
-        os.system("clear")
-
-        # Banner
-        console.print("\n[bold black on blue]wtconf[/bold black on blue] a tiny config launcher", 
-        justify="center")
-
-        # Table
-        table = Table(show_lines=False, box=box.SIMPLE, width=64, collapse_padding=True, show_header=True, border_style="dim")
-        table.add_column("#", justify="center", header_style="bold blue" ,style="blue")
-        table.add_column("Config", justify="left")
-        table.add_column("Path", justify="left", style="dim", header_style="dim")
-
-        items = list(loaded.items()) if loaded else []
-
-        for i, (label, path) in enumerate(items, start=1): # Populate table
-            table.add_row(str(i), str(label), str(path))
-
-        if not items:
-            table.add_row("-", "[dim]<empty>[/dim]", "[dim]wtconf --add /path/to/file.conf[/dim]")
-
-        console.print(table, justify="center")
-
-
-        def pad_for_table(console, text, table_width=TABLE_WIDTH):
-            cols = shutil.get_terminal_size().columns
-            block_pad = max(0, (cols - table_width) // 2)               # left offset of the centered block
-            display_width = Text.from_markup(text).cell_len             # visible width (ignores markup)
-            inner_pad = max(0, (table_width - display_width) // 2)      # center inside the block
-            return " " * (block_pad + inner_pad)
-        
-        def run_editor_and_reload(path):
-            try:
-                rc = subprocess.run([editor, str(path)]).returncode
-                if rc == 0:
-                    load_configs()
-                else:
-                    console.print(f"\n[red]{editor} exited with code {rc}[/red]\nPress enter...", justify="center")
-            except FileNotFoundError:                
-                    console.print(f"\n[red]{editor} not found[/red]. Check your settings.yaml.\nPress enter...", justify="center")
-
-        prompt = "Enter [bold blue]ID[/bold blue], [bold blue]s[/bold blue]ettings, [bold blue]c[/bold blue]onfiglist or [bold blue]q[/bold blue]uit: "
-
-        pad = pad_for_table(console, prompt)
-        sel = console.input(pad + prompt).strip()
-
-        if sel.lower() == "q":
-            console.print("\n")
-            sys.exit(0)
-
-        if sel.lower() == "s":
-            run_editor_and_reload(SETTINGS_FILE)
-            continue
-
-        if sel.lower() == "c":
-            run_editor_and_reload(CONFIGLIST_FILE)
-            continue
-
-        if not sel.isdigit():
-            console.print("\n")
-            console.print("ID must be a number. Press Enter...", justify="center")
-            input()
-            continue
-
-        idx = int(sel) - 1
-        if not (0 <= idx < len(items)):
-            console.print("\n")
-            console.print("ID out of range. Press Enter...", justify="center")
-            input()
-            continue
-
-        label, path = items[idx]
-        run_editor_and_reload(path)
-
-        input()
-
-
+# === Load configs and init ===
 
 def load_configs():
     global loaded, editor, SETTINGS_FILE, CONFIGLIST_FILE
@@ -113,7 +38,8 @@ def load_configs():
     with open(SETTINGS_FILE) as f:
         config = yaml.safe_load(f) or {}
 
-    editor = config.get("editor", "nano") # fallback to nano if editor missing    
+    editor = config.get("editor") or os.environ.get("EDITOR") or "nano"
+
 
 def init():
     global SETTINGS_FILE, CONFIGLIST_FILE
@@ -132,21 +58,143 @@ def init():
     load_configs()
 
     if args.add is None: # Default behavior: if no --add argument is passed, show the menu
-        print_config()
+        console = Console()
+        menu_loop()
 
-init()
 
 
-# Handle adding new configs to CONFIGLIST_FILE
-if args.add:
-    path = Path(args.add).expanduser().resolve()
-    label = os.path.splitext(os.path.basename(args.add))[0]
+# === Draw the menu ===
 
-    # add to dict
-    loaded[label] = str(path)
+def menu_loop(): # draw the menu
+    
+    console = Console()
+    status = None
+    try: #for KeyboardInterrupt exception
+        while True:
+            console.clear()
 
-    # write to yaml
-    with open(CONFIGLIST_FILE, "w") as f:
-        yaml.safe_dump(loaded, f, sort_keys=False)
+            # Banner
+            console.print("\n[bold black on blue]wtconf[/bold black on blue] a tiny config launcher", 
+            justify="center")
 
-        print(f"Added {label}: {path}")
+            # Table
+            table = Table(show_lines=False, box=box.SIMPLE, width=TABLE_WIDTH, collapse_padding=True, show_header=True, border_style="dim")
+            table.add_column("#", justify="center", header_style="bold blue" ,style="blue")
+            table.add_column("Config", justify="left")
+            table.add_column("Path", justify="left", style="dim", header_style="dim")
+
+            items = list(loaded.items()) if loaded else []
+
+            for i, (label, path) in enumerate(items, start=1): # Populate table
+                table.add_row(str(i), str(label), str(path))
+
+            if not items:
+                table.add_row("-", "[dim]<empty>[/dim]", "[dim]wtconf --add /path/to/file.conf[/dim]")
+
+            console.print(table, justify="center")
+
+            #console.print("[dim]─[/dim]" * 62, justify="center")
+
+            if status:
+                console.print(pad_for_table(status) + status)
+                status = None
+
+            console.print(
+                "[bold blue]ID[/bold blue] = open | "
+                "[green]s[/green] = settings | "
+                "[cyan]c[/cyan] = configlist | "
+                "[yellow]r[/yellow] = reload | "
+                "[red]q[/red] = quit",
+                justify="center"
+            )
+
+            prompt = "> "
+            pad = pad_for_table(prompt)
+            sel = console.input("\n" + pad + prompt).strip()
+
+            if sel.lower() == "q":
+                console.print("\n")
+                sys.exit(0)
+
+            if sel.lower() == "s":
+                run_editor_and_reload(SETTINGS_FILE)
+                continue
+
+            if sel.lower() == "c":
+                run_editor_and_reload(CONFIGLIST_FILE)
+                continue
+
+            if sel.lower() == "r":
+                load_configs()
+                status = "[green]Config files reloaded[/green]\n"
+                continue
+
+            if not sel.isdigit():
+                info("ID must be a number. Press Enter...")
+                continue
+
+            idx = int(sel) - 1
+            if not (0 <= idx < len(items)):
+                info("ID out of range. Press Enter...")
+                continue
+
+            label, path = items[idx]
+            run_editor_and_reload(path)
+
+    except KeyboardInterrupt:
+        console.print("\n\n")
+        sys.exit(0)
+
+
+
+# === Menu helpers ===
+
+def pad_for_table(text, table_width=TABLE_WIDTH):
+    cols = shutil.get_terminal_size().columns
+    block_pad = max(0, (cols - table_width) // 2)               # left offset of the centered block
+    display_width = Text.from_markup(text).cell_len             # visible width (ignores markup)
+    inner_pad = max(0, (table_width - display_width) // 2)      # center inside the block
+    return " " * (block_pad + inner_pad)
+
+def run_editor_and_reload(path):
+    try:
+        rc = subprocess.run([editor, str(path)]).returncode
+        if rc == 0:
+            load_configs()
+        else:
+            info(f"\n[red]{editor} exited with code {rc}[/red]\nPress enter...", justify="center")
+    except FileNotFoundError:                
+            info(f"\n[red]{editor} not found[/red]. Check your settings.yaml.\nPress enter...", justify="center")
+    
+
+def info(msg, pause=True):
+    console = Console()
+    console.print("\n", msg, justify="center")
+    if pause:
+        input()
+
+
+
+# === Handle arguments ===
+
+def handle_args():
+    if args.add:
+        path = Path(args.add).expanduser().resolve()
+        label = os.path.splitext(os.path.basename(args.add))[0]
+
+        # add to dict
+        loaded[label] = str(path)
+
+        # write to yaml
+        with open(CONFIGLIST_FILE, "w") as f:
+            yaml.safe_dump(loaded, f, sort_keys=False)
+
+            print(f"Added {label}: {path}")
+
+
+
+# === Main execution ===
+
+if __name__ == "__main__":
+    init()
+    handle_args()
