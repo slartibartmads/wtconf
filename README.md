@@ -1,8 +1,3 @@
-```
-                                 __ 
-   __      _| |_ ___ ___  _ __  / _|
-   \ \ /\ / / __/ __/ _ \| '_ \| |_ 
-    \ V  V /| || (_| (_) | | | |  _|
-     \_/\_/  \__\___\___/|_| |_|_|  
-a tiny config launcher written in python
-```
+![Screenshot](screenshot.png)
+
+**wtconfig** is a tiny config file launcher written in Python
