@@ -162,14 +162,49 @@ def run_editor_and_reload(path):
         if rc == 0:
             load_configs()
         else:
-            info(f"\n[red]{editor} exited with code {rc}[/red]\nPress enter...", justify="center")
-    except FileNotFoundError:                
-            info(f"\n[red]{editor} not found[/red]. Check your settings.yaml.\nPress enter...", justify="center")
-    
+            info(f"[red]{editor} exited with code {rc}[/red]")
+    except FileNotFoundError:
+        # show error line, then centered Y/N prompt
+        info(f"[red]{editor} not found[/red]", pause=False)
+        if ask_yes_no(f"Open [bold]{SETTINGS_FILE.name}[/bold] in [bold]nano[/bold] to fix it now?", default=True):
+            try:
+                subprocess.run(["nano", str(SETTINGS_FILE)], check=False)
+                load_configs()
+                if ask_yes_no("Retry the previous action with the updated editor?", default=True):
+                    try:
+                        rc = subprocess.run([editor, str(path)]).returncode
+                        if rc == 0:
+                            load_configs()
+                        else:
+                            info(f"[red]{editor} exited with code {rc}[/red]")
+                    except FileNotFoundError:
+                        info(f"[red]{editor} still not found[/red]. Please verify your settings.")
+            except FileNotFoundError:
+                info("[red]nano not found[/red]. Please edit settings.yaml manually.")
+        else:
+            info("Set a valid editor in settings.yaml and try again.")
+
+
+
+def ask_yes_no(prompt, default=False):
+    console = Console()
+    suffix = " [Y/n]: " if default else " [y/N]: "
+    text = prompt + suffix
+    pad = pad_for_table(text)
+    while True:
+        ans = console.input("\n" + pad + text).strip().lower()
+        if not ans:
+            return default
+        if ans in ("y", "yes"):
+            return True
+        if ans in ("n", "no"):
+            return False
+
 
 def info(msg, pause=True):
     console = Console()
-    console.print("\n", msg, justify="center")
+    console.print()  # blank line
+    console.print(pad_for_table(msg) + msg)
     if pause:
         input()
 
