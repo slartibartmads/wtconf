@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import yaml                  # for reading/writing YAML config files
 import subprocess            # to run external programs (like your editor)
 import sys                   # for exiting the program
@@ -6,6 +8,9 @@ import argparse              # for handling command-line arguments
 from pathlib import Path     # for resolving paths
 import shutil
 
+from rich.console import Console
+from rich.table import Table
+from rich import box
 
 # Setup argparse: this defines what arguments the program accepts
 parser = argparse.ArgumentParser(description="wtconf is a tiny config file launcher")
@@ -22,69 +27,75 @@ __      _| |_ ___ ___  _ __  / _|
  \ V  V /| || (_| (_) | | | |  _|
   \_/\_/  \__\___\___/|_| |_|_|  
 a tiny config launcher
-
 """
 
 
-
-
-def print_centered(text):
-    cols = 60
-    for line in text.splitlines():
-        # .center pads the line with spaces on both sides
-        print(line.center(cols))
-
 def print_config():
-    """Main menu loop: show configs, let user pick one, open it in editor."""
+    console = Console()
+
     while True:
-        # Clear terminal for a clean look each time
         os.system("clear")
-        print_centered(banner)
-        #print(banner)
+
+        # Banner
+        console.print(banner, justify="center")
+
+        # Table
+        table = Table(show_lines=False, box=box.SIMPLE_HEAVY, width=64)
+        table.add_column("ID", justify="right", style="bold")
+        table.add_column("Label", justify="left")
+        table.add_column("Path", justify="left")
+
+        items = list(loaded.items()) if loaded else []
+
+        for i, (label, path) in enumerate(items, start=1):
+            table.add_row(str(i), str(label), str(path))
+
+        if not items:
+            table.add_row("-", "[dim]<empty>[/dim]", "[dim]wtconf --add /path/to/file.conf[/dim]")
+
+        console.print(table, justify="center")
+
+        # ---- input / actions ----
+        TABLE_WIDTH = 64  # must match Table(width=64)
+
+        def center_under_table(text):
+            cols = shutil.get_terminal_size().columns
+            block_pad = max(0, (cols - TABLE_WIDTH) // 2)         # left offset of the table block
+            inner_pad = max(0, (TABLE_WIDTH - len(text)) // 2)    # center inside the block
+            return " " * (block_pad + inner_pad) + text
         
-        # Print table header
-        print(f"{'ID':<3} {'Label'.ljust(16)} Path")
-        print("-" * 60)
+        prompt = "Enter ID, (s)ettings, (c)onfiglist or (q)uit:"
+        sel = console.input(center_under_table(prompt)).strip()
 
-        # Convert configs dict into list of (label, path) pairs
-        items = list(loaded.items())
+        if sel.lower() == "q":
+            console.print("\n")
+            sys.exit(0)
 
-        # Print each config as a row with an index number
-        for i, (key, value) in enumerate(items, start=1):
-            print(f"{i:<3} {key.ljust(16)} {value}")
+        if sel.lower() == "s":
+            subprocess.run([editor, str(SETTINGS_FILE)])
+            continue
 
-        def get_selection(items):
-            """Ask user to select a config ID or quit."""
-            while True:
-                selection = input("\nEnter ID, (s)ettings, (c)onfigist or (q)uit: ").strip()
-                if not selection.isdigit():
-                    # Handle non-numbers
-                    if selection.lower() == "q":
-                        print("\nSo long!\n")
-                        sys.exit(0)  # exit the whole program
-                    if selection.lower() =="s":
-                        subprocess.run([editor, SETTINGS_FILE]).returncode
-                    if selection.lower() == "c":
-                        subprocess.run([editor, CONFIGLIST_FILE]).returncode
-                    print("ID must be a number.")
-                    continue
-                # Convert selection to list index
-                idx = int(selection) - 1
-                if 0 <= idx < len(items):
-                    return items[idx]   # returns (label, path)
-                print("ID out of range.")
+        if sel.lower() == "c":
+            subprocess.run([editor, str(CONFIGLIST_FILE)])
+            continue
 
-        # Wait for user to pick a config
-        label, path = get_selection(items)
+        if not sel.isdigit():
+            console.print("\n")
+            console.print(center_under_table("ID must be a number. Press Enter..."))
+            input()
+            continue
 
-        # Open the config in the editor (micro)
-        # This blocks until the editor is closed
-        rc = subprocess.run([editor, path]).returncode
+        idx = int(sel) - 1
+        if not (0 <= idx < len(items)):
+            console.print("\n")
+            console.print(center_under_table("ID out of range. Press Enter..."))
+            input()
+            continue
 
-        # If editor exits with error code, let the user know
+        label, path = items[idx]
+        rc = subprocess.run([editor, str(path)]).returncode
         if rc != 0:
-            print(f"\n(editor exited with code {rc})\n")
-            input("Press Enter to continue")
+            input(f"(editor exited with code {rc}) Press Enter...")
 
 
 
