@@ -1,53 +1,45 @@
 #!/usr/bin/env python3
 
-import yaml                  # for reading/writing YAML config files
-import subprocess            # to run external programs (like your editor)
-import sys                   # for exiting the program
-import os                    # for system calls (like clearing the screen)
-import argparse              # for handling command-line arguments
-from pathlib import Path     # for resolving paths
+import yaml
+import subprocess
+import sys
+import os
+import argparse
+from pathlib import Path
 import shutil
 
 from rich.console import Console
 from rich.table import Table
 from rich import box
+from rich.text import Text
 
-# Setup argparse: this defines what arguments the program accepts
 parser = argparse.ArgumentParser(description="wtconf is a tiny config file launcher")
-parser.add_argument("--add", help="Add new config")  # e.g. configulator --add /etc/foo.conf
+parser.add_argument("--add", help="Add new config")  # e.g. wtconf --add /etc/foo.conf
 args = parser.parse_args()
 
-
-# globals
-
-banner = r"""
-          _                   __ 
-__      _| |_ ___ ___  _ __  / _|
-\ \ /\ / / __/ __/ _ \| '_ \| |_ 
- \ V  V /| || (_| (_) | | | |  _|
-  \_/\_/  \__\___\___/|_| |_|_|  
-a tiny config launcher
-"""
+TABLE_WIDTH = 64
 
 
-def print_config():
+
+def print_config(): # draw the menu
     console = Console()
 
     while True:
         os.system("clear")
 
         # Banner
-        console.print(banner, justify="center")
+        console.print("\n[bold black on blue]wtconf[/bold black on blue] a tiny config launcher", 
+        justify="center")
 
         # Table
-        table = Table(show_lines=False, box=box.SIMPLE_HEAVY, width=64)
-        table.add_column("ID", justify="right", style="bold")
-        table.add_column("Label", justify="left")
-        table.add_column("Path", justify="left")
+        table = Table(show_lines=False, box=box.SIMPLE, width=64, collapse_padding=True, show_header=True, border_style="dim")
+        table.add_column("#", justify="center", header_style="bold blue" ,style="blue")
+        table.add_column("Config", justify="left")
+        table.add_column("Path", justify="left", style="dim", header_style="dim")
 
         items = list(loaded.items()) if loaded else []
 
-        for i, (label, path) in enumerate(items, start=1):
+        for i, (label, path) in enumerate(items, start=1): # Populate table
             table.add_row(str(i), str(label), str(path))
 
         if not items:
@@ -55,52 +47,72 @@ def print_config():
 
         console.print(table, justify="center")
 
-        # ---- input / actions ----
-        TABLE_WIDTH = 64  # must match Table(width=64)
 
-        def center_under_table(text):
+        def pad_for_table(console, text, table_width=TABLE_WIDTH):
             cols = shutil.get_terminal_size().columns
-            block_pad = max(0, (cols - TABLE_WIDTH) // 2)         # left offset of the table block
-            inner_pad = max(0, (TABLE_WIDTH - len(text)) // 2)    # center inside the block
-            return " " * (block_pad + inner_pad) + text
+            block_pad = max(0, (cols - table_width) // 2)               # left offset of the centered block
+            display_width = Text.from_markup(text).cell_len             # visible width (ignores markup)
+            inner_pad = max(0, (table_width - display_width) // 2)      # center inside the block
+            return " " * (block_pad + inner_pad)
         
-        prompt = "Enter ID, (s)ettings, (c)onfiglist or (q)uit:"
-        sel = console.input(center_under_table(prompt)).strip()
+        prompt = "Enter [bold blue]ID[/bold blue], [bold blue]s[/bold blue]ettings, [bold blue]c[/bold blue]onfiglist or [bold blue]q[/bold blue]uit: "
+
+        pad = pad_for_table(console, prompt)
+        sel = console.input(pad + prompt).strip()
 
         if sel.lower() == "q":
             console.print("\n")
             sys.exit(0)
 
         if sel.lower() == "s":
-            subprocess.run([editor, str(SETTINGS_FILE)])
+            subprocess.run([editor, str(SETTINGS_FILE)]).returncode
+            if rc == 0:
+                load_configs()
             continue
 
         if sel.lower() == "c":
-            subprocess.run([editor, str(CONFIGLIST_FILE)])
-            continue
+            subprocess.run([editor, str(CONFIGLIST_FILE)]).returncode
+            if rc == 0:
+                load_configs()
+                continue
 
         if not sel.isdigit():
             console.print("\n")
-            console.print(center_under_table("ID must be a number. Press Enter..."))
+            console.print("ID must be a number. Press Enter...", justify="center")
             input()
             continue
 
         idx = int(sel) - 1
         if not (0 <= idx < len(items)):
             console.print("\n")
-            console.print(center_under_table("ID out of range. Press Enter..."))
+            console.print("ID out of range. Press Enter...", justify="center")
             input()
             continue
 
         label, path = items[idx]
         rc = subprocess.run([editor, str(path)]).returncode
         if rc != 0:
-            input(f"(editor exited with code {rc}) Press Enter...")
+            console.print("editor exited with code {rc}) Press Enter...", justify="center")
+
+            input()
 
 
+
+def load_configs():
+    global loaded, editor, SETTINGS_FILE, CONFIGLIST_FILE
+
+    # load configlist.yaml
+    with open(CONFIGLIST_FILE) as f:
+        loaded = yaml.safe_load(f) or {}
+
+    # Load settings.yaml
+    with open(SETTINGS_FILE) as f:
+        config = yaml.safe_load(f) or {}
+
+    editor = config.get("editor", "nano") # fallback to nano if editor missing    
 
 def init():
-    global loaded, editor, SETTINGS_FILE, CONFIGLIST_FILE  # <-- make assignments global
+    global SETTINGS_FILE, CONFIGLIST_FILE
 
     CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / ""
     SETTINGS_FILE = CONFIG_DIR/"wtconf" / "settings.yaml"
@@ -113,20 +125,9 @@ def init():
     if not SETTINGS_FILE.exists():
         SETTINGS_FILE.write_text("editor: nano")
 
-    # Load the list of config files from YAML file into a Python dictionary
-    with open(CONFIGLIST_FILE) as f:
-        loaded = yaml.safe_load(f) or {}
+    load_configs()
 
-    # Load config.yaml
-    with open(SETTINGS_FILE) as f:
-        config = yaml.safe_load(f) or {}
-
-    editor = config.get("editor", "nano") # fallback to nano if missing        
-
-    print("Load complete")
-
-    # Default behavior: if no --add argument is passed, show the menu
-    if args.add is None:
+    if args.add is None: # Default behavior: if no --add argument is passed, show the menu
         print_config()
 
 init()
@@ -134,19 +135,14 @@ init()
 
 # Handle adding new configs to CONFIGLIST_FILE
 if args.add:
-#    print(args.add)  # TEMP: show what was passed in (for debugging/learning)
     path = Path(args.add).expanduser().resolve()
     label = os.path.splitext(os.path.basename(args.add))[0]
 
     # add to dict
     loaded[label] = str(path)
 
-    # write to YAML
+    # write to yaml
     with open(CONFIGLIST_FILE, "w") as f:
         yaml.safe_dump(loaded, f, sort_keys=False)
 
         print(f"Added {label}: {path}")
-
-
-
-
