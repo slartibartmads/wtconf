@@ -55,6 +55,16 @@ def print_config(): # draw the menu
             inner_pad = max(0, (table_width - display_width) // 2)      # center inside the block
             return " " * (block_pad + inner_pad)
         
+        def run_editor_and_reload(path):
+            try:
+                rc = subprocess.run([editor, str(path)]).returncode
+                if rc == 0:
+                    load_configs()
+                else:
+                    console.print(f"\n[red]{editor} exited with code {rc}[/red]\nPress enter...", justify="center")
+            except FileNotFoundError:                
+                    console.print(f"\n[red]{editor} not found[/red]. Check your settings.yaml.\nPress enter...", justify="center")
+
         prompt = "Enter [bold blue]ID[/bold blue], [bold blue]s[/bold blue]ettings, [bold blue]c[/bold blue]onfiglist or [bold blue]q[/bold blue]uit: "
 
         pad = pad_for_table(console, prompt)
@@ -65,16 +75,12 @@ def print_config(): # draw the menu
             sys.exit(0)
 
         if sel.lower() == "s":
-            subprocess.run([editor, str(SETTINGS_FILE)]).returncode
-            if rc == 0:
-                load_configs()
+            run_editor_and_reload(SETTINGS_FILE)
             continue
 
         if sel.lower() == "c":
-            subprocess.run([editor, str(CONFIGLIST_FILE)]).returncode
-            if rc == 0:
-                load_configs()
-                continue
+            run_editor_and_reload(CONFIGLIST_FILE)
+            continue
 
         if not sel.isdigit():
             console.print("\n")
@@ -90,11 +96,9 @@ def print_config(): # draw the menu
             continue
 
         label, path = items[idx]
-        rc = subprocess.run([editor, str(path)]).returncode
-        if rc != 0:
-            console.print("editor exited with code {rc}) Press Enter...", justify="center")
+        run_editor_and_reload(path)
 
-            input()
+        input()
 
 
 
