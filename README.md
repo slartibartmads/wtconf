@@ -1,2 +1,6 @@
-# wtconf
-a tiny config launcher
+          _                   __ 
+__      _| |_ ___ ___  _ __  / _|
+\ \ /\ / / __/ __/ _ \| '_ \| |_ 
+ \ V  V /| || (_| (_) | | | |  _|
+  \_/\_/  \__\___\___/|_| |_|_|  
+a tiny config launcher written in python
