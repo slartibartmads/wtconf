@@ -1,5 +1,5 @@
 
-# wtconf - a tiny config launcher written in python
+# wtconf - a tiny config launcher
 
 ![Screenshot](screenshot.png)
 
