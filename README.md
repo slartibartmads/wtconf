@@ -4,7 +4,7 @@
 ![Screenshot](screenshot.png)
 
 A simple CLI tool to bookmark and launch your config files with your favorite editor.
-No black-box shenanigans, no version management – just open your configs fast.
+No black-box shenanigans, no version management – just open configs fast.
 
 
 
