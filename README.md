@@ -36,3 +36,8 @@ Entries are stored in:
 ```
 This config can also be launched from the app to edit labels or delete entries.
 
+## Uninstall
+```
+pipx uninstall wtconf
+rm -rf ~/.config/wtconf # deletes wtconf config files
+```
