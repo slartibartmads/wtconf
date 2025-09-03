@@ -230,6 +230,9 @@ def handle_args():
 
 # === Main execution ===
 
-if __name__ == "__main__":
+def main():
     init()
     handle_args()
+
+if __name__ == "__main__":
+    main()
